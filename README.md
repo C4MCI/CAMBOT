@@ -6,9 +6,13 @@ CAMBOT is a Discord bot specialized for Turkish Discord Community. Most of the c
 You can do plenty of things from playing music to reviewing the economical status of Turkey using CAMBOT.
 
 ## How To Use?
-You can download the files and host the bot yourself by double clicking the launcher.py. But you should fill the blanks in the .env file first. You will need a Discord bot token, sporify client id and client secret, genius access token and a youtube api key. You should fill the blanks in the .env file like this:  
+You can download the files and host the bot yourself by double clicking the launcher.py. But you should create a file named ".env" first. You will need a Discord bot token, sporify client id and client secret, genius access token and a youtube api key. Open the .env file with notepad and add your tokens. Your .env file should look like this:  
 
 TOKEN="YOUR_DISCORD_TOKEN_HERE"  
+SPOTIPY_CLIENT_ID="YOUR_SPOTIFY_CLIENT_ID_HERE"  
+SPOTIPY_CLIENT_SECRET="YOUR_SPOTIFY_CLIENT_SECRET_HERE"  
+GENIUS_ACCESS_TOKEN="YOUR_GENIUS_ACCES_TOKEN_HERE"  
+YOUTUBE_API_KEY="YOUR_YOUTUBE_API_KEY_HERE"  
 
 If you don't want to deal with all of this stuff, you can always add CAMBOT to your server by clicking [this link](google.com). I am doing my best to keep CAMBOT online all the time but it seems impossible without paying for host. But I will take care of it sometime so just enjoy.
 
