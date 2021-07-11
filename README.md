@@ -51,3 +51,10 @@ These are the commands that I use with my friends. There are some inside jokes w
 - ***semihtürkçe*** (aliases = [st]) --> Plays the Semih Vicir's special Turkish playlist.
 - ***furkansavar*** (no aliases) --> This command will only work if Furkan Toprak is online. Only use this command if you want to enrage Furkan Toprak.
 - ***tft*** (no aliases) --> This command will call specific people to come to play Teamfight Tactics.
+
+## Contact
+If you find any bugs or if you have any command requests, you can always contact me via [my Twitter account](https://twitter.com/C4MCI). Feel free to ask anything.
+
+## Credits
+Basic structure of this bot made by following [Carberra Tutorials's](https://www.youtube.com/channel/UC13cYu7lec-oOcqQf5L-brg) videos. You might want to take a look at his channel if you are interested in coding.  
+I used [this repository](https://github.com/ZipBomb/spotify-song-suggestion) to get random songs by genre using Spotify API.  
