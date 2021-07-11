@@ -57,4 +57,4 @@ If you find any bugs or if you have any command requests, you can always contact
 
 ## Credits
 Basic structure of this bot made by following [Carberra Tutorials's](https://www.youtube.com/channel/UC13cYu7lec-oOcqQf5L-brg) videos. You might want to take a look at his channel if you are interested in coding.  
-I used [this repository](https://github.com/ZipBomb/spotify-song-suggestion) to get random songs by genre using Spotify API.  
+I used [ZipBomb's repository](https://github.com/ZipBomb/spotify-song-suggestion) to get random songs by genre using Spotify API.  
