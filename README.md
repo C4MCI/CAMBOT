@@ -14,7 +14,7 @@ SPOTIPY_CLIENT_SECRET="YOUR_SPOTIFY_CLIENT_SECRET_HERE"
 GENIUS_ACCESS_TOKEN="YOUR_GENIUS_ACCES_TOKEN_HERE"  
 YOUTUBE_API_KEY="YOUR_YOUTUBE_API_KEY_HERE"  
 
-If you don't want to deal with all of this stuff, you can always add CAMBOT to your server by clicking [this link](google.com). I am doing my best to keep CAMBOT online all the time but it seems impossible without paying for host. But I will take care of it sometime so just enjoy.
+If you don't want to deal with all of this stuff, you can always add CAMBOT to your server by clicking [this link](https://discord.com/api/oauth2/authorize?client_id=788455398872973342&permissions=8&scope=bot). I am doing my best to keep CAMBOT online all the time but it seems impossible without paying for host. But I will take care of it sometime so just enjoy.
 
 ## COMMANDS
 This is going to be a long session that I explain all commands of CAMBOT. You might consider skipping that part.
