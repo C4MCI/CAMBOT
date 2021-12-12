@@ -16,7 +16,6 @@ import requests
 from bs4 import BeautifulSoup
 from lyricsgenius import Genius
 
-
 from randomsong import *
 from googleapiclient.discovery import build
 from decouple import config
@@ -126,12 +125,12 @@ def get_related_video_title(videoID):
         part="snippet",
         type="video",
         relatedToVideoId=videoID,
-        maxResults=10
+        maxResults=5
     )
     response = request.execute()
     while True:
         try:
-            title = response["items"][random.choice(range(10))]["snippet"]["title"]
+            title = response["items"][random.choice(range(5))]["snippet"]["title"]
             break
         except KeyError:
             continue
@@ -257,6 +256,7 @@ class Player(wavelink.Player):
         super().__init__(*args, **kwargs)
         self.queue = Queue()
         self.q_msg_list = []
+        self.willDeleteList = []
 
     async def connect(self, ctx, channel=None):
         self.ctx_glob2 = ctx
@@ -270,18 +270,29 @@ class Player(wavelink.Player):
         return channel
 
     async def teardown(self):
-        try:
-            await self.sent_message.delete()
-            for i in self.q_msg_list:
-                await i.delete()
-            self.q_msg_list.clear()
-        except (discord.errors.NotFound, AttributeError):
-            pass
-        try:
-            await self.destroy()
-            await self.ctx_glob2.send(":raised_hand:", delete_after=5)
-        except (KeyError, AttributeError):
-            pass
+        if self.is_connected:
+            try:
+                await self.destroy()
+                await self.ctx_glob2.send(":raised_hand:", delete_after=5)
+            except (KeyError, AttributeError):
+                pass
+
+            try:
+                await self.sent_message.delete()
+                for i in self.q_msg_list:
+                    await i.delete()
+                    time.sleep(0.3)
+                self.q_msg_list.clear()
+            except (discord.errors.NotFound, AttributeError):
+                pass
+
+            try:
+                for i in self.willDeleteList:
+                    await i.delete()
+                    time.sleep(0.3)
+                self.willDeleteList.clear()
+            except (discord.errors.NotFound, AttributeError):
+                pass
 
     async def add_spot_tracks_track(self, ctx, tracks):
         self.ctx_glob2 = ctx
@@ -295,7 +306,6 @@ class Player(wavelink.Player):
             embed.description = f"Sıraya eklenen şarkı: [{tracks[0].title}]({tracks[0].uri}) [{ctx.author.mention}]"
             q_msg = await ctx.send(embed=embed)
             self.q_msg_list.append(q_msg)
-
 
     async def add_spot_tracks(self, ctx, tracks):
         self.ctx_glob2 = ctx
@@ -345,7 +355,8 @@ class Player(wavelink.Player):
             if sayı > 1:
                 embed = discord.Embed(colour=ctx.author.color)
                 embed.description = f"**{sayı}** şarkı sıraya eklendi."
-                await ctx.send(embed=embed)
+                msg = await ctx.send(embed=embed)
+                self.willDeleteList.append(msg)
         elif len(tracks) == 1:
             self.queue.add(tracks[0])
             if self.queue.lenght > 1 and self.is_playing:
@@ -379,7 +390,8 @@ class Player(wavelink.Player):
             if sayı > 1:
                 embed = discord.Embed(colour=ctx.author.color)
                 embed.description = f"**{sayı}** şarkı sıraya eklendi."
-                await ctx.send(embed=embed)
+                msg = await ctx.send(embed=embed)
+                self.willDeleteList.append(msg)
                 if sayı > 10:
                     self.ctx_glob2 = ctx
         elif len(tracks) == 1:
@@ -414,7 +426,7 @@ class Player(wavelink.Player):
             title="Bir şarkı seçin",
             description=(
                 "\n".join(
-                    f"**{i + 1}.** [{t.title}]({t.uri}) ({t.length // 60000}:{str(t.length % 60).zfill(2)})"
+                    f"**{i + 1}.** [{t.title}]({t.uri}) ({int((t.length / 1000) / 60)}:{str(int(((t.length / 1000) % 60))).zfill(2)})"
                     for i, t in enumerate(tracks[:5])
                 )
             ),
@@ -442,6 +454,7 @@ class Player(wavelink.Player):
                 return tracks[OPTIONS[reaction.emoji]]
 
     async def start_playback(self):
+        await self.set_volume(50)
         if not self.is_playing and self.is_connected:
             await self.play(self.queue.current_track)
             self.playing_embed = discord.Embed(
@@ -453,7 +466,7 @@ class Player(wavelink.Player):
                                          value=f"[{self.queue.current_track.title}]({self.queue.current_track.uri})",
                                          inline=True)
             self.playing_embed.add_field(name="Süre",
-                                         value=f"[{self.queue.current_track.length // 60000}:{str(self.queue.current_track.length % 60).zfill(2)}]")
+                                         value=f"[{int((self.queue.current_track.length / 1000) / 60)}:{str(int(((self.queue.current_track.length / 1000) % 60))).zfill(2)}]")
             self.playing_embed.add_field(name="Durum", value="Çalıyor")
             self.playing_embed.set_footer(text=f"{self.ctx_glob2.author.display_name}",
                                           icon_url=self.ctx_glob2.author.avatar_url)
@@ -470,7 +483,7 @@ class Player(wavelink.Player):
                                      value=f"[{self.queue.current_track.title}]({self.queue.current_track.uri})",
                                      inline=True)
         self.playing_embed.add_field(name="Süre",
-                                     value=f"[{self.queue.current_track.length // 60000}:{str(self.queue.current_track.length % 60).zfill(2)}]")
+                                     value=f"[{int((self.queue.current_track.length / 1000) / 60)}:{str(int(((self.queue.current_track.length / 1000) % 60))).zfill(2)}]")
         self.playing_embed.add_field(name="Durum", value="Duraklatıldı")
         self.playing_embed.set_footer(text=f"{self.ctx_glob2.author.display_name}",
                                       icon_url=self.ctx_glob2.author.avatar_url)
@@ -487,7 +500,7 @@ class Player(wavelink.Player):
                                      value=f"[{self.queue.current_track.title}]({self.queue.current_track.uri})",
                                      inline=True)
         self.playing_embed.add_field(name="Süre",
-                                     value=f"[{self.queue.current_track.length // 60000}:{str(self.queue.current_track.length % 60).zfill(2)}]")
+                                     value=f"[{int((self.queue.current_track.length / 1000) / 60)}:{str(int(((self.queue.current_track.length / 1000) % 60))).zfill(2)}]")
         self.playing_embed.add_field(name="Durum", value="Çalıyor")
         self.playing_embed.set_footer(text=f"{self.ctx_glob2.author.display_name}",
                                       icon_url=self.ctx_glob2.author.avatar_url)
@@ -504,6 +517,7 @@ class Player(wavelink.Player):
             pass
         try:
             if (track := self.queue.get_next_track()) is not None:
+                time.sleep(0.5)
                 await self.start_playback()
         except QueueIsEmpty:
             self.ctx_glob2 = None
@@ -546,7 +560,6 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             if payload.player.queue.autoplay == Autoplay.ON or payload.player.queue.autoplay == Autoplay.KARMA:
                 if self.genre:
                     query = f"ytsearch: {main(genre=self.genre)}"
-                    print(main(genre=self.genre))
                     await payload.player.add_spot_tracks(self.ctx_msc, await  self.wavelink.get_tracks(query))
                     await payload.player.advance()
                 elif self.genre is None and payload.player.queue.autoplay == Autoplay.ON:
@@ -569,7 +582,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             description="**Bu video yaş kısıtlamalı olduğu için oynatılamıyor.**",
             colour=discord.Colour.red()
         )
-        await self.ctx_msc.send(embed=embed)
+        await self.ctx_msc.send(embed=embed, delete_after=10)
 
     async def cog_check(self, ctx):
         self.ctx_msc = ctx
@@ -606,8 +619,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     async def connect_command(self, ctx, *, channel: t.Optional[discord.VoiceChannel]):
         self.ctx_msc = ctx
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
         channel = await player.connect(ctx, channel)
-        await ctx.send(f"'{channel.name}' kanalına bağlandı.")
+        await ctx.send(f"'{channel.name}' kanalına bağlandı.", delete_after=15)
 
     @connect_command.error
     async def connect_command_error(self, ctx, exc):
@@ -616,23 +630,95 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Mal CAMCI beceremediği için ikinci bir ses kanalına bağlanamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
         elif isinstance(exc, NoVoiceChannel):
             embed = discord.Embed(
                 description="**Bu komutu kullanmak için önce bir ses kanalına bağlanmanız gerekiyor.**",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
     @commands.command(name="disconnect", aliases=["dc", "leave", "l"])
     async def disconnect_command(self, ctx):
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
         await player.teardown()
 
     @commands.command(name="play", aliases=["p"])
     async def play_command(self, ctx, *, query: t.Optional[str]):
         self.ctx_msc = ctx
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
+
+        if not player.is_connected:
+            await player.connect(ctx)
+
+        if query is None:
+            if player.is_playing and not player.is_paused:
+                raise PlayerIsAlreadyPlaying
+
+            if player.queue.is_empty:
+                raise QueueIsEmpty
+
+            await player.set_pause(False)
+            await ctx.message.add_reaction("▶")
+            await player.change_playing_status_on()
+
+        else:
+            query = query.strip("<>")
+            if not re.match(URL_REGEX, query):
+                query = f"ytsearch:{query}"
+                await player.add_spot_tracks_track(ctx, await self.wavelink.get_tracks(query))
+            elif re.match(URL_REGEX, query) and "open.spotify.com/playlist/" in query:
+                tracklist = getSpotifyTracks(query)
+
+                embed = discord.Embed(colour=ctx.author.color)
+                embed.description = f"**{len(tracklist)}** şarkı sıraya eklendi."
+                msg = await ctx.send(embed=embed)
+                player.willDeleteList.append(msg)
+
+                for i in tracklist:
+                    await player.add_spot_tracks(ctx, await self.wavelink.get_tracks_playlist(i))
+            elif re.match(URL_REGEX, query) and "open.spotify.com/track/" in query:
+                tracklist = getSpotifyTracks_track(query)
+                query_list = []
+                for i in tracklist:
+                    query_list.append(f"ytsearch:{i}")
+                for i in query_list:
+                    await player.add_spot_tracks_track(ctx, await self.wavelink.get_tracks(i))
+
+
+            else:
+                await player.add_tracks(ctx, await self.wavelink.get_tracks(query))
+
+    @play_command.error
+    async def play_command_error(self, ctx, exc):
+        if isinstance(exc, AlreadyConnectedToChannel):
+            embed = discord.Embed(
+                description=f"**Mal CAMCI beceremediği için ikinci bir ses kanalına bağlanamıyorum.** [{ctx.author.mention}]",
+                colour=discord.Color.red()
+            )
+            await ctx.send(embed=embed, delete_after=10)
+        elif isinstance(exc, NoVoiceChannel):
+            embed = discord.Embed(
+                description="**Bu komutu kullanmak için önce bir ses kanalına bağlanmanız gerekiyor.**",
+                colour=discord.Color.red()
+            )
+            await ctx.send(embed=embed, delete_after=10)
+        elif isinstance(exc, QueueIsEmpty):
+            embed = discord.Embed(
+                description=f"**Oynatma sırasında şarkı olmadığı için oynatmaya başlayamıyorum.** [{ctx.author.mention}]",
+                colour=discord.Color.red()
+            )
+            await ctx.send(embed=embed, delete_after=10)
+        elif isinstance(exc, PlayerIsAlreadyPlaying):
+            pass
+
+    @commands.command(name="chooseplay", aliases=["cp"])
+    async def chooseplay_command(self, ctx, *, query: t.Optional[str]):
+        self.ctx_msc = ctx
+        player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
 
         if not player.is_connected:
             await player.connect(ctx)
@@ -658,7 +744,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
                 embed = discord.Embed(colour=ctx.author.color)
                 embed.description = f"**{len(tracklist)}** şarkı sıraya eklendi."
-                await ctx.send(embed=embed)
+                msg = await ctx.send(embed=embed)
+                player.willDeleteList.append(msg)
 
                 for i in tracklist:
                     await player.add_spot_tracks(ctx, await self.wavelink.get_tracks_playlist(i))
@@ -674,32 +761,33 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             else:
                 await player.add_tracks(ctx, await self.wavelink.get_tracks(query))
 
-    @play_command.error
-    async def play_command_error(self, ctx, exc):
+    @chooseplay_command.error
+    async def chooseplay_command_error(self, ctx, exc):
         if isinstance(exc, AlreadyConnectedToChannel):
             embed = discord.Embed(
                 description=f"**Mal CAMCI beceremediği için ikinci bir ses kanalına bağlanamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
         elif isinstance(exc, NoVoiceChannel):
             embed = discord.Embed(
                 description="**Bu komutu kullanmak için önce bir ses kanalına bağlanmanız gerekiyor.**",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
         elif isinstance(exc, QueueIsEmpty):
             embed = discord.Embed(
                 description=f"**Oynatma sırasında şarkı olmadığı için oynatmaya başlayamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
         elif isinstance(exc, PlayerIsAlreadyPlaying):
             pass
 
     @commands.command(name="pause", aliases=["wait"])
     async def pause_command(self, ctx):
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
 
         if player.is_paused:
             raise PlayerIsAlreadyPaused
@@ -715,11 +803,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Ben bekliyorum sen devam et.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
     @commands.command(name="resume")
     async def resume_command(self, ctx):
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
 
         if not player.is_paused and not player.queue.is_empty:
             raise PlayerIsAlreadyPlaying
@@ -740,11 +829,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Oynatma sırasında şarkı olmadığı için oynatmaya başlayamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
     @commands.command(name="stop")
     async def stop_command(self, ctx):
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
         player.queue.clear()
         for i in player.q_msg_list:
             await i.delete()
@@ -757,6 +847,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @commands.command(name="next", aliases=["skip"])
     async def next_command(self, ctx):
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
 
         if not player.queue.upcoming and player.queue.autoplay == Autoplay.OFF and player.queue.repeat_mode == RepeatMode.NONE:
             raise NoMoreTracks
@@ -771,18 +862,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Sırada şarkı olmadığı için ilerleyemiyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
         elif isinstance(exc, NoMoreTracks):
             embed = discord.Embed(
                 description=f"**Sırada şarkı olmadığı için ilerleyemiyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
     @commands.command(name="previous", aliases=["back"])
     async def previous_command(self, ctx):
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
 
         if not player.queue.history:
             raise NoPreviousTracks
@@ -803,18 +895,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Oynatma sırasında şarkı olmadığı için oynatmaya başlayamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
         elif isinstance(exc, NoPreviousTracks):
             embed = discord.Embed(
                 description=f"**Sırasın daha gerisinde şarkı olmadığı için oynatmaya başlayamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
     @commands.command(name="shuffle")
     async def shuffle_command(self, ctx):
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
         player.queue.shuffle()
         await ctx.message.add_reaction("🔀")
 
@@ -825,7 +918,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Oynatma sırasında şarkı olmadığı için oynatmaya başlayamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
     @commands.command(name="repeat", aliases=["loop"])
     async def repeat_command(self, ctx, mode: t.Optional[str]):
@@ -841,14 +934,17 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         player = self.get_player(ctx)
         player.queue.set_repeat_mode(mode)
         embed = discord.Embed(
-            description=f"**Yeniden oynatma modu {mode}'e ayarlandı**",
+            description=f"**Yeniden oynatma modu {mode}'e ayarlandı.**",
             color=ctx.author.color
         )
-        await ctx.send(embed=embed)
+        msg = await ctx.send(embed=embed)
+        player.willDeleteList.append(msg)
+        player.willDeleteList.append(ctx.message)
 
     @commands.command(name="autoplay", aliases=["ap", "auto"])
     async def autoplay_command(self, ctx, *, genre: t.Optional[str]):
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
         self.genre = genre
         if not player.is_connected:
             await player.connect(ctx)
@@ -860,7 +956,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     description="**Lütfen geçerli bir şarkı türü giriniz. Eğer istediğiniz bir tür yok ise komutu direkt .autoplay olarak kullanabilirsiniz**",
                     color=discord.Color.red()
                 )
-                await ctx.send(embed=embed)
+                await ctx.send(embed=embed, delete_after=15)
             await player.add_spot_tracks(ctx, await self.wavelink.get_tracks(query))
 
         if player.queue.autoplay == Autoplay.ON and genre is not None:
@@ -868,7 +964,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Şarkı türü bir sonraki şarkıda '{genre}' olarak güncellenecek.**",
                 color=ctx.author.color
             )
-            await ctx.send(embed=embed)
+            msg = await ctx.send(embed=embed)
+            player.willDeleteList.append(msg)
 
         if player.queue.autoplay == Autoplay.OFF:
             player.queue.set_autoplay_mode("on")
@@ -882,21 +979,24 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     description=f"**Otomatik oynatma açık. Şarkı türü '{genre}' olarak ayarlandı.**",
                     color=ctx.author.color
                 )
-            await ctx.send(embed=embed)
+            msg = await ctx.send(embed=embed)
+            player.willDeleteList.append(msg)
         elif player.queue.autoplay == Autoplay.ON and not genre:
             player.queue.set_autoplay_mode("off")
             embed = discord.Embed(
                 description="**Otomatik oynatma kapalı.**",
                 color=ctx.author.color
             )
-            await ctx.send(embed=embed)
+            msg = await ctx.send(embed=embed)
+            player.willDeleteList.append(msg)
         elif player.queue.autoplay == Autoplay.KARMA:
             player.queue.set_autoplay_mode("off")
             embed = discord.Embed(
                 description="**Otomatik oynatma kapalı.**",
                 color=ctx.author.color
             )
-            await ctx.send(embed=embed)
+            msg = await ctx.send(embed=embed)
+            player.willDeleteList.append(msg)
 
         if player.is_connected and player.queue.autoplay == Autoplay.ON and not player.is_playing and genre is None:
             player.queue.set_autoplay_mode("karma")
@@ -907,6 +1007,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
     @commands.command(name="queue", aliases=["q"])
     async def queue_command(self, ctx, show: t.Optional[int] = 5):
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
 
         if player.queue.is_empty:
             raise QueueIsEmpty
@@ -920,7 +1021,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
         embed.set_footer(text=f"{ctx.author.display_name}", icon_url=ctx.author.avatar_url)
         try:
             embed.add_field(name="Şu an çalan şarkı",
-                            value=f"[{player.queue.current_track.title}]({player.queue.current_track.uri}) [{player.queue.current_track.length // 60000}:{str(player.queue.current_track.length % 60).zfill(2)}]",
+                            value=f"[{player.queue.current_track.title}]({player.queue.current_track.uri}) [{int((self.queue.current_track.length / 1000) / 60)}:{str(int(((self.queue.current_track.length / 1000) % 60))).zfill(2)}]",
                             inline=False)
         except AttributeError:
             embed.add_field(name="Şu an çalan şarkı", value="Şu an çalan şarkı yok.", inline=False)
@@ -928,12 +1029,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
             embed.add_field(
                 name="Sıradakiler",
                 value="\n".join(
-                    f"**{i + 1}.** [{t.title}]({t.uri}) [{t.length // 60000}:{str(t.length % 60).zfill(2)}]" for i, t in
+                    f"**{i + 1}.** [{t.title}]({t.uri}) [{int((t.length / 1000) / 60)}:{str(int(((t.length / 1000) % 60))).zfill(2)}]"
+                    for i, t in
                     enumerate(player.queue.upcoming[:show])),
                 inline=False
             )
 
         msg = await ctx.send(embed=embed)
+        player.willDeleteList.append(msg)
 
         def _check(r, u):
             return (
@@ -972,7 +1075,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     newembed.set_footer(text=f"{ctx.author.display_name}", icon_url=ctx.author.avatar_url)
                     try:
                         newembed.add_field(name="Şu an çalan şarkı",
-                                           value=f"[{player.queue.current_track.title}]({player.queue.current_track.uri}) [{player.queue.current_track.length // 60000}:{str(player.queue.current_track.length % 60).zfill(2)}]",
+                                           value=f"[{player.queue.current_track.title}]({player.queue.current_track.uri}) [{int((player.queue.current_track.length / 1000) / 60)}:{str(int(((player.queue.current_track.length / 1000) % 60))).zfill(2)}]",
                                            inline=False)
                     except AttributeError:
                         newembed.add_field(name="Şu an çalan şarkı", value="Şu an çalan şarkı yok.", inline=False)
@@ -981,7 +1084,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                         newembed.add_field(
                             name="Sıradakiler",
                             value="\n".join(
-                                f"**{i + 1}.** [{t.title}]({t.uri}) [{t.length // 60000}:{str(t.length % 60).zfill(2)}]"
+                                f"**{i + 1}.** [{t.title}]({t.uri}) [{int((t.length / 1000) / 60)}:{str(int(((t.length / 1000) % 60))).zfill(2)}]"
                                 for
                                 i, t in a[oldshow:show]
                             ),
@@ -1005,7 +1108,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     newembed.set_footer(text=f"{ctx.author.display_name}", icon_url=ctx.author.avatar_url)
                     try:
                         newembed.add_field(name="Şu an çalan şarkı",
-                                           value=f"[{player.queue.current_track.title}]({player.queue.current_track.uri}) [{player.queue.current_track.length // 60000}:{str(player.queue.current_track.length % 60).zfill(2)}]",
+                                           value=f"[{player.queue.current_track.title}]({player.queue.current_track.uri}) [{int((player.queue.current_track.length / 1000) / 60)}:{str(int(((player.queue.current_track.length / 1000) % 60))).zfill(2)}]",
                                            inline=False)
                     except AttributeError:
                         newembed.add_field(name="Şu an çalan şarkı", value="Şu an çalan şarkı yok.", inline=False)
@@ -1014,7 +1117,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                         newembed.add_field(
                             name="Sıradakiler",
                             value="\n".join(
-                                f"**{i + 1}.** [{t.title}]({t.uri}) [{t.length // 60000}:{str(t.length % 60).zfill(2)}]"
+                                f"**{i + 1}.** [{t.title}]({t.uri}) [{int((t.length / 1000) / 60)}:{str(int(((t.length / 1000) % 60))).zfill(2)}]"
                                 for
                                 i, t in a[oldshow:show]
                             ),
@@ -1038,7 +1141,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                         newembed.set_footer(text=f"{ctx.author.display_name}", icon_url=ctx.author.avatar_url)
                         try:
                             newembed.add_field(name="Şu an çalan şarkı",
-                                               value=f"[{player.queue.current_track.title}]({player.queue.current_track.uri}) [{player.queue.current_track.length // 60000}:{str(player.queue.current_track.length % 60).zfill(2)}]",
+                                               value=f"[{player.queue.current_track.title}]({player.queue.current_track.uri}) [{int((player.queue.current_track.length / 1000) / 60)}:{str(int(((player.queue.current_track.length / 1000) % 60))).zfill(2)}]",
                                                inline=False)
                         except AttributeError:
                             newembed.add_field(name="Şu an çalan şarkı", value="Şu an çalan şarkı yok.", inline=False)
@@ -1047,7 +1150,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                             newembed.add_field(
                                 name="Sıradakiler",
                                 value="\n".join(
-                                    f"**{i + 1}.** [{t.title}]({t.uri}) [{t.length // 60000}:{str(t.length % 60).zfill(2)}]"
+                                    f"**{i + 1}.** [{t.title}]({t.uri}) [{int((t.length / 1000) / 60)}:{str(int(((t.length / 1000) % 60))).zfill(2)}]"
                                     for
                                     i, t in a[oldshow:show]
                                 ),
@@ -1070,7 +1173,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     newembed.set_footer(text=f"{ctx.author.display_name}", icon_url=ctx.author.avatar_url)
                     try:
                         newembed.add_field(name="Şu an çalan şarkı",
-                                           value=f"[{player.queue.current_track.title}]({player.queue.current_track.uri}) [{player.queue.current_track.length // 60000}:{str(player.queue.current_track.length % 60).zfill(2)}]",
+                                           value=f"[{player.queue.current_track.title}]({player.queue.current_track.uri}) [{int((player.queue.current_track.length / 1000) / 60)}:{str(int(((player.queue.current_track.length / 1000) % 60))).zfill(2)}]",
                                            inline=False)
                     except AttributeError:
                         newembed.add_field(name="Şu an çalan şarkı", value="Şu an çalan şarkı yok.", inline=False)
@@ -1079,7 +1182,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                         newembed.add_field(
                             name="Sıradakiler",
                             value="\n".join(
-                                f"**{i + 1}.** [{t.title}]({t.uri}) [{t.length // 60000}:{str(t.length % 60).zfill(2)}]"
+                                f"**{i + 1}.** [{t.title}]({t.uri}) [{int((t.length / 1000) / 60)}:{str(int(((t.length / 1000) % 60))).zfill(2)}]"
                                 for
                                 i, t in a[oldshow:show]
                             ),
@@ -1094,13 +1197,14 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Şu anda sırada bir şarkı yok.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
         if isinstance(exc, NoMoreTracks):
             pass
 
     @commands.command(name="jump", aliases=["skipto"])
     async def jump_command(self, ctx, q_num: int):
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
 
         if not player.queue.upcoming:
             raise NoMoreTracks
@@ -1119,11 +1223,12 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Lütfen geçerli bir değer giriniz.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
     @commands.command(name="playnext", aliases=["pn"])
     async def playnext_command(self, ctx, *, query: t.Optional[str]):
         player = self.get_player(ctx)
+        player.willDeleteList.append(ctx.message)
 
         if not player.is_connected:
             await player.connect(ctx)
@@ -1148,7 +1253,8 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
                 embed = discord.Embed(colour=ctx.author.color)
                 embed.description = f"**{len(tracklist)}** şarkı sıraya eklendi."
-                await ctx.send(embed=embed)
+                msg = await ctx.send(embed=embed)
+                player.willDeleteList.append(msg)
 
                 for i in tracklist:
                     await player.add_spot_tracks_next(ctx, await self.wavelink.get_tracks_playlist(i))
@@ -1170,9 +1276,9 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Oynatma sırasında şarkı olmadığı için oynatmaya başlayamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=10)
 
-    @commands.command(name="lyrics", help="Çalan şarkının sözlerini gösterir.")
+    @commands.command(name="lyrics", help="Çalan şarkının sözlerini gösterir.", aliases=["ly"])
     async def lyrics(self, ctx, *, query: t.Optional[str]):
         player = self.get_player(ctx)
         if query is None:
@@ -1186,17 +1292,26 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 title = re.sub("[\(\[].*?[\)\]]", "", title)
                 title = title.strip()
                 song = genius.search_song(title, get_full_info=False)
-                if len(song.lyrics) <= 2048:
+                lyrics = song.lyrics
+                excLyricTerms = []
+                excLyricIndex = 100
+                while excLyricIndex >= 0:
+                    excLyricTerms.append(str(excLyricIndex) + "EmbedShare")
+                    excLyricIndex -= 1
+                excLyricTerms.extend(["URLCopyEmbedCopy", "1KEmbedShare", "EmbedShare"])
+                for i in excLyricTerms:
+                    lyrics = lyrics.replace(i, "")
+                if len(lyrics) <= 2048:
                     embed = discord.Embed(
-                        title=f"{song.full_title.replace('by', '-')}",
+                        title=f"{song.artist} - {song.title}",
                         color=ctx.author.color,
                         timestamp=dt.datetime.utcnow()
                     )
-                    embed.description = song.lyrics
+                    embed.description = lyrics
                     embed.set_footer(text=f"{ctx.author.display_name}", icon_url=ctx.author.avatar_url)
                     await ctx.send(embed=embed)
                 else:
-                    lyrics = song.lyrics.split("\n")
+                    lyrics = lyrics.split("\n")
                     half = (len(lyrics) / 2)
                     first_half = ""
                     second_half = ""
@@ -1214,7 +1329,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
                     if len(first_half) <= 2048:
                         embed = discord.Embed(
-                            title=f"{song.full_title.replace('by', '-')}",
+                            title=f"{song.artist} - {song.title}",
                             colour=ctx.author.color,
                             timestamp=dt.datetime.utcnow(),
                             description=first_half
@@ -1241,7 +1356,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                             else:
                                 if reaction.emoji == QUEUE_OPS[1]:
                                     newembed = discord.Embed(
-                                        title=f"{song.full_title.replace('by', '-')}",
+                                        title=f"{song.artist} - {song.title}",
                                         colour=ctx.author.color,
                                         timestamp=dt.datetime.utcnow(),
                                         description=second_half
@@ -1249,7 +1364,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                     await msg.edit(embed=newembed)
                                 if reaction.emoji == QUEUE_OPS[2]:
                                     newembed = discord.Embed(
-                                        title=f"{song.full_title.replace('by', '-')}",
+                                        title=f"{song.artist} - {song.title}",
                                         colour=ctx.author.color,
                                         timestamp=dt.datetime.utcnow(),
                                         description=first_half
@@ -1273,7 +1388,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                         order_list = [quarter1, quarter2, quarter3, quarter4]
 
                         embed = discord.Embed(
-                            title=f"{song.full_title.replace('by', '-')}",
+                            title=f"{song.artist} - {song.title}",
                             colour=ctx.author.color,
                             timestamp=dt.datetime.utcnow(),
                             description=quarter1
@@ -1304,7 +1419,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                     if (order_num + 1) <= (len(order_list) - 1):
                                         order_num += 1
                                     newembed = discord.Embed(
-                                        title=f"{song.full_title.replace('by', '-')}",
+                                        title=f"{song.artist} - {song.title}",
                                         colour=ctx.author.color,
                                         timestamp=dt.datetime.utcnow(),
                                         description=order_list[order_num]
@@ -1314,7 +1429,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                     if (order_num - 1) >= 0:
                                         order_num -= 1
                                     newembed = discord.Embed(
-                                        title=f"{song.full_title.replace('by', '-')}",
+                                        title=f"{song.artist} - {song.title}",
                                         colour=ctx.author.color,
                                         timestamp=dt.datetime.utcnow(),
                                         description=order_list[order_num]
@@ -1326,31 +1441,44 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     description="Bu şarkının sözlerini bulamadım. Daha tutarlı bir arama yapmak\n için **'.lyrics şarkı ismi, sanatçı'** şeklinde bu komutu kullanabilirsiniz.",
                     colour=discord.Color.red()
                 )
-                await ctx.send(embed=embed)
+                await ctx.send(embed=embed, delete_after=15)
             except QueueIsEmpty:
                 embed = discord.Embed(
                     description="Komutu bu şekilde kullanmak için bir şarkı açmalısınız. Eğer şarkı açmadan arama yapmak istiyorsanız komutu \n**'.lyrics şarkı ismi, sanatçı'** şeklinde kullanabilirsiniz",
                     colour=discord.Color.red()
                 )
-                await ctx.send(embed=embed)
+                await ctx.send(embed=embed, delete_after=15)
 
         else:
-            try:
+            if "," in query:
                 query_list = query.split(",")
                 title = query_list[0].strip()
                 artist = query_list[1].strip()
+            else:
+                title = query
+                artist = ""
+            try:
                 genius = Genius()
                 song = genius.search_song(title=title, artist=artist, get_full_info=False)
+                lyrics = song.lyrics
+                excLyricTerms = []
+                excLyricIndex = 100
+                while excLyricIndex >= 0:
+                    excLyricTerms.append(str(excLyricIndex) + "EmbedShare")
+                    excLyricIndex -= 1
+                excLyricTerms.extend(["URLCopyEmbedCopy", "1KEmbedShare", "EmbedShare"])
+                for i in excLyricTerms:
+                    lyrics = lyrics.replace(i, "")
 
-                if len(song.lyrics) <= 2048:
-                    embed = discord.Embed(title=f"{song.full_title.replace('by', '-')}", colour=ctx.author.color,
+                if len(lyrics) <= 2048:
+                    embed = discord.Embed(title=f"{song.artist} - {song.title}", colour=ctx.author.color,
                                           timestamp=dt.datetime.utcnow())
-                    embed.description = song.lyrics
+                    embed.description = lyrics
                     embed.set_footer(text=f"{ctx.author.display_name}", icon_url=ctx.author.avatar_url)
                     await ctx.send(embed=embed)
 
                 else:
-                    lyrics = song.lyrics.split("\n")
+                    lyrics = lyrics.split("\n")
                     half = (len(lyrics) / 2)
                     first_half = ""
                     second_half = ""
@@ -1368,7 +1496,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
 
                     if len(first_half) <= 2048:
                         embed = discord.Embed(
-                            title=f"{song.full_title.replace('by', '-')}",
+                            title=f"{song.artist} - {song.title}",
                             colour=ctx.author.color,
                             timestamp=dt.datetime.utcnow(),
                             description=first_half
@@ -1395,7 +1523,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                             else:
                                 if reaction.emoji == QUEUE_OPS[1]:
                                     newembed = discord.Embed(
-                                        title=f"{song.full_title.replace('by', '-')}",
+                                        title=f"{song.artist} - {song.title}",
                                         colour=ctx.author.color,
                                         timestamp=dt.datetime.utcnow(),
                                         description=second_half
@@ -1403,7 +1531,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                     await msg.edit(embed=newembed)
                                 if reaction.emoji == QUEUE_OPS[2]:
                                     newembed = discord.Embed(
-                                        title=f"{song.full_title.replace('by', '-')}",
+                                        title=f"{song.artist} - {song.title}",
                                         colour=ctx.author.color,
                                         timestamp=dt.datetime.utcnow(),
                                         description=first_half
@@ -1427,7 +1555,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                         order_list = [quarter1, quarter2, quarter3, quarter4]
 
                         embed = discord.Embed(
-                            title=f"{song.full_title.replace('by', '-')}",
+                            title=f"{song.artist} - {song.title}",
                             colour=ctx.author.color,
                             timestamp=dt.datetime.utcnow(),
                             description=quarter1
@@ -1458,7 +1586,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                     if (order_num + 1) <= (len(order_list) - 1):
                                         order_num += 1
                                     newembed = discord.Embed(
-                                        title=f"{song.full_title.replace('by', '-')}",
+                                        title=f"{song.artist} - {song.title}",
                                         colour=ctx.author.color,
                                         timestamp=dt.datetime.utcnow(),
                                         description=order_list[order_num]
@@ -1468,7 +1596,7 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                                     if (order_num - 1) >= 0:
                                         order_num -= 1
                                     newembed = discord.Embed(
-                                        title=f"{song.full_title.replace('by', '-')}",
+                                        title=f"{song.artist} - {song.title}",
                                         colour=ctx.author.color,
                                         timestamp=dt.datetime.utcnow(),
                                         description=order_list[order_num]
@@ -1480,13 +1608,13 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                     description="Bu şarkının sözlerini bulamadım. Lütfen **şarkı ismi ve sanatçı** değerlerini doğru girdiğinizden emin olun ve tekrar deneyin.\nÖrnek Kullanım: **.lyrics Blank Space, Taylor Swift**",
                     colour=discord.Color.red()
                 )
-                await ctx.send(embed=embed)
+                await ctx.send(embed=embed, delete_after=15)
             except IndexError:
                 embed = discord.Embed(
                     description="Lütfen komutu **'.lyrics şarkı ismi, sanatçı'** şeklinde kullanın.",
                     colour=discord.Color.red()
                 )
-                await ctx.send(embed=embed)
+                await ctx.send(embed=embed, delete_after=15)
 
     @commands.command(name="melihtürkçe", aliases=["melihturkce", "mt"])
     async def melihtürkçe(self, ctx):
@@ -1500,19 +1628,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Mal CAMCI beceremediği için ikinci bir ses kanalına bağlanamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=15)
         elif isinstance(exc, NoVoiceChannel):
             embed = discord.Embed(
                 description="**Bu komutu kullanmak için önce bir ses kanalına bağlanmanız gerekiyor.**",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=15)
         elif isinstance(exc, QueueIsEmpty):
             embed = discord.Embed(
                 description=f"**Oynatma sırasında şarkı olmadığı için oynatmaya başlayamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=15)
         elif isinstance(exc, PlayerIsAlreadyPlaying):
             pass
 
@@ -1528,19 +1656,19 @@ class Music(commands.Cog, wavelink.WavelinkMixin):
                 description=f"**Mal CAMCI beceremediği için ikinci bir ses kanalına bağlanamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=15)
         elif isinstance(exc, NoVoiceChannel):
             embed = discord.Embed(
                 description="**Bu komutu kullanmak için önce bir ses kanalına bağlanmanız gerekiyor.**",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=15)
         elif isinstance(exc, QueueIsEmpty):
             embed = discord.Embed(
                 description=f"**Oynatma sırasında şarkı olmadığı için oynatmaya başlayamıyorum.** [{ctx.author.mention}]",
                 colour=discord.Color.red()
             )
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, delete_after=15)
         elif isinstance(exc, PlayerIsAlreadyPlaying):
             pass
 
@@ -1556,7 +1684,8 @@ class Diğer(commands.Cog):
         if furkan.status == discord.Status.online:
             await ctx.send("https://youtu.be/OsGentI_NHo?t=58")
         elif furkan is None:
-            await ctx.send("Furkan Toprak bu sunucuda bulunmuyor. Bu mesaj kendini 3 saniye içerisinde imha edecek.", delete_after=3)
+            await ctx.send("Furkan Toprak bu sunucuda bulunmuyor. Bu mesaj kendini 3 saniye içerisinde imha edecek.",
+                           delete_after=3)
         else:
             await ctx.send("Furkan Toprak online değil. Bu mesaj kendini 3 saniye içerisinde imha edecek.",
                            delete_after=3)
@@ -1642,13 +1771,12 @@ class Diğer(commands.Cog):
         response = requests.get(url)
         content = response.content
         soup = BeautifulSoup(content, "html.parser")
-        for i in soup.find_all("div",
-                               {"data-socket-attr": "c", "data-socket-key": "gram-altin", "class": "change status up"}):
-            print(i)
+        for i in soup.find_all("div", {"data-socket-attr": "c", "data-socket-key": "gram-altin",
+                                       "class": "change-rate status up"}):
             degisim = "+"
             günlük_yüzde = (((i.text).rsplit())[0])
         for i in soup.find_all("div", {"data-socket-attr": "c", "data-socket-key": "gram-altin",
-                                       "class": "change status down"}):
+                                       "class": "change-rate status down"}):
             degisim = ""
             günlük_yüzde = (((i.text).rsplit())[0])
         for i in soup.find("span", {"data-socket-attr": "a", "data-socket-key": "gram-altin"}):
@@ -1666,6 +1794,80 @@ class Diğer(commands.Cog):
         embed.add_field(name="Son Güncelleme", value=son_güncelleme)
         embed.set_thumbnail(
             url="https://iasbh.tmgrup.com.tr/96b53f/752/395/0/57/652/400?u=https://isbh.tmgrup.com.tr/sbh/2020/04/08/altin-fiyatlari-yukselis-egiliminde-1586335652329.jpg")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="bitcoin", help="BTC/USDT kurunu gösterir.", aliases=["btc"])
+    async def bitcoin(self, ctx):
+        url = "https://www.doviz.com/kripto-paralar/bitcoin"
+        response = requests.get(url)
+        content = response.content
+        soup = BeautifulSoup(content, "html.parser")
+
+        for i in soup.find("div", {"class": "text-xs text-blue-gray-2"}):
+            son_güncelleme = (i[5:10])
+
+        for i in soup.find("div", {"data-socket-attr": "s", "data-socket-key": "bitcoin"}):
+            kur = i
+
+        for i in soup.find("span", {"data-socket-attr": "a", "data-socket-key": "bitcoin"}):
+            günlük_değişim = (i.rsplit()[0])
+
+        for i in soup.find_all("div", {"data-socket-attr": "c", "data-socket-key": "bitcoin",
+                                       "class": "change-rate status up"}):
+            degisim = "+"
+            günlük_yüzde = ((i.text.rsplit())[0])
+
+        for i in soup.find_all("div", {"data-socket-attr": "c", "data-socket-key": "bitcoin",
+                                       "class": "change-rate status down"}):
+            degisim = ""
+            günlük_yüzde = ((i.text.rsplit())[0])
+
+        embed = discord.Embed(
+            title="Bitcoin",
+            colour=ctx.author.color,
+        )
+        embed.add_field(name="Fiyat", value=kur, inline=True)
+        embed.add_field(name="Günlük Değişim", value=f"{degisim}{günlük_yüzde} ({günlük_değişim})", inline=True)
+        embed.add_field(name="Son Güncelleme", value=son_güncelleme)
+        embed.set_thumbnail(
+            url="https://i-invdn-com.investing.com/news/bitcoin_800x533_L_1411988633.jpg")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="ethereum", help="ETH/USDT kurunu gösterir.", aliases=["eth"])
+    async def ethereum(self, ctx):
+        url = "https://www.doviz.com/kripto-paralar/ethereum"
+        response = requests.get(url)
+        content = response.content
+        soup = BeautifulSoup(content, "html.parser")
+        degisim = ""
+
+        for i in soup.find("div", {"class": "text-xs text-blue-gray-2"}):
+            son_güncelleme = (i[5:10])
+
+        for i in soup.find("div", {"data-socket-attr": "s", "data-socket-key": "ethereum"}):
+            kur = i
+
+        for i in soup.find("span", {"data-socket-attr": "a", "data-socket-key": "ethereum"}):
+            günlük_değişim = (i.rsplit()[0])
+
+        for i in soup.find_all("div", {"data-socket-attr": "c", "data-socket-key": "ethereum", }):
+            günlük_yüzde = ((i.text.rsplit())[0])
+
+        for i in soup.find_all("div", {"data-socket-attr": "c", "data-socket-key": "ethereum"}):
+            günlük_yüzde = ((i.text.rsplit())[0])
+
+        for i in soup.find_all("div", {"class": "nowrap color-up font-semibold"}):
+            degisim = "+"
+
+        embed = discord.Embed(
+            title="Ethereum",
+            colour=ctx.author.color,
+        )
+        embed.add_field(name="Fiyat", value=kur, inline=True)
+        embed.add_field(name="Günlük Değişim", value=f"{degisim}{günlük_yüzde} ({günlük_değişim})", inline=True)
+        embed.add_field(name="Son Güncelleme", value=son_güncelleme)
+        embed.set_thumbnail(
+            url="https://imgrosetta.mynet.com.tr/file/13280149/13280149-728xauto.jpg")
         await ctx.send(embed=embed)
 
     @commands.command(name="akp", help="AKP'nin son 20 yılda ülkeye kattığı değerleri gösterir.")
@@ -1710,8 +1912,10 @@ class Diğer(commands.Cog):
             title="CAMBOT v1.0",
             color=ctx.author.color
         )
-        embed.add_field(name="TR", value="CAMCI tarafından yazılmış ve lisanslanmıştır. Detaylı bilgi için [CAMBOT resmi Github sayfasını](https://github.com/C4MCI/CAMBOT) ziyaret edebilirsiniz.")
-        embed.add_field(name="EN", value="Written by CAMCI. This project is MIT licensed. You can check [official Github repository of CAMBOT](https://github.com/C4MCI/CAMBOT) for further information.")
+        embed.add_field(name="TR",
+                        value="CAMCI tarafından yazılmış ve lisanslanmıştır. Detaylı bilgi için [CAMBOT resmi Github sayfasını](https://github.com/C4MCI/CAMBOT) ziyaret edebilirsiniz.")
+        embed.add_field(name="EN",
+                        value="Written by CAMCI. This project is MIT licensed. You can check [official Github repository of CAMBOT](https://github.com/C4MCI/CAMBOT) for further information.")
         await ctx.send(embed=embed)
 
 

@@ -35,7 +35,7 @@ class MusicBot(commands.Bot):
             os.system(f"cd {Lavalink_dir} && java -jar Lavalink.jar")
 
         Thread(target=lavarun).start()
-        time.sleep(5)
+        time.sleep(60)
         print("Bot başlatılıyor...")
         super().run(TOKEN, reconnect=True)
 
